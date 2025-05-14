@@ -14,25 +14,34 @@ export class GoRouteCodeLensProvider implements vscode.CodeLensProvider {
     async provideCodeLenses(document: vscode.TextDocument): Promise<vscode.CodeLens[]> {
         const parserPath = getParserPath(this.context);
         const filePath = document.uri.fsPath;
-
         let routes: Route[] = [];
         try {
             routes = await this.parseRoutes(parserPath, filePath);
         } catch {
             // ignore
         }
-
-        return routes.map(route => {
+        return routes.flatMap(route => {
             const position = new vscode.Position(route.line - 1, 0);
-            return new vscode.CodeLens(
-                new vscode.Range(position, position),
-                {
-                    title: this.composeLensTitle(route),
-                    tooltip: 'Click để xem chi tiết route',
-                    command: 'goRouteExtension.codelensAction',
+            // Tạo 3 CodeLens riêng biệt cho mỗi chức năng
+            return [
+                new vscode.CodeLens(new vscode.Range(position, position), {
+                    title: '[request body]',
+                    tooltip: 'Nhập raw JSON request body cho route này',
+                    command: 'goRouteExtension.setRequestBody',
                     arguments: [route]
-                }
-            );
+                }),
+                new vscode.CodeLens(new vscode.Range(position, position), {
+                    title: '[baerer]',
+                    tooltip: 'Nhập baerer token dùng cho tất cả route',
+                    command: 'goRouteExtension.setBaerer'
+                }),
+                new vscode.CodeLens(new vscode.Range(position, position), {
+                    title: '[run]',
+                    tooltip: 'Chạy HTTP request này',
+                    command: 'goRouteExtension.runRoute',
+                    arguments: [route]
+                }),
+            ];
         });
     }
 
@@ -47,9 +56,5 @@ export class GoRouteCodeLensProvider implements vscode.CodeLensProvider {
                 }
             });
         });
-    }
-
-    private composeLensTitle(route: Route): string {
-        return `👋 ${route.method} ${route.path}   [request body]  [baerer]  [run]`;
     }
 }

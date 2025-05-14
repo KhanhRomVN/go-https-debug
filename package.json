@@ -38,36 +38,40 @@
     "lint": "eslint src"
   },
   "contributes": {
-  "viewsContainers": {
-    "activitybar": [
-      {
-        "id": "gohbSidebar",
-        "title": "GOHB",
-        "icon": "media/icon.svg"
-      }
-    ]
-  },
-  "views": {
-    "gohbSidebar": [
-      {
-        "id": "gohbProjectRoutes",
-        "name": "Projects & Routes"
-      }
-    ]
-  }
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "gohbSidebar",
+          "title": "GOHB",
+          "icon": "media/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "gohbSidebar": [
+        {
+          "id": "gohbProjectRoutes",
+          "name": "Projects & Routes"
+        }
+      ]
+    }
   },
   "devDependencies": {
-    "@types/vscode": "^1.50.0",
     "@types/mocha": "^10.0.10",
     "@types/node": "20.x",
+    "@types/node-fetch": "^2.6.12",
+    "@types/vscode": "^1.50.0",
     "@typescript-eslint/eslint-plugin": "^8.28.0",
     "@typescript-eslint/parser": "^8.28.0",
-    "eslint": "^9.23.0",
-    "typescript": "^5.8.2",
-    "ts-loader": "^9.5.2",
-    "webpack": "^5.98.0",
-    "webpack-cli": "^6.0.1",
     "@vscode/test-cli": "^0.0.10",
-    "@vscode/test-electron": "^2.4.1"
+    "@vscode/test-electron": "^2.4.1",
+    "eslint": "^9.23.0",
+    "ts-loader": "^9.5.2",
+    "typescript": "^5.8.2",
+    "webpack": "^5.98.0",
+    "webpack-cli": "^6.0.1"
+  },
+  "dependencies": {
+    "node-fetch": "^2.7.0"
   }
 }
