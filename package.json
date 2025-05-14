@@ -1,0 +1,73 @@
+{
+  "name": "go-https-debug-backend",
+  "displayName": "Go: Https & Debug",
+  "description": "A extension VSCode",
+  "version": "0.0.1",
+  "publisher": "khanhromvn",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/khanhromvn/go_https_and_debug.git"
+  },
+  "icon": "images/icon.png",
+  "engines": {
+    "vscode": "^1.50.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "keywords": [
+    "copy",
+    "path",
+    "content",
+    "clipboard",
+    "file"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./dist/extension.js",
+  "scripts": {
+    "vscode:prepublish": "npm run package",
+    "compile": "webpack",
+    "watch": "webpack --watch",
+    "package": "webpack --mode production --devtool hidden-source-map",
+    "compile-tests": "tsc -p . --outDir out",
+    "watch-tests": "tsc -p . -w --outDir out",
+    "pretest": "npm run compile-tests && npm run compile && npm run lint",
+    "lint": "eslint src"
+  },
+  "contributes": {
+  "viewsContainers": {
+    "activitybar": [
+      {
+        "id": "gohbSidebar",
+        "title": "GOHB",
+        "icon": "media/icon.svg"
+      }
+    ]
+  },
+  "views": {
+    "gohbSidebar": [
+      {
+        "id": "gohbProjectRoutes",
+        "name": "Projects & Routes"
+      }
+    ]
+  }
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.50.0",
+    "@types/mocha": "^10.0.10",
+    "@types/node": "20.x",
+    "@typescript-eslint/eslint-plugin": "^8.28.0",
+    "@typescript-eslint/parser": "^8.28.0",
+    "eslint": "^9.23.0",
+    "typescript": "^5.8.2",
+    "ts-loader": "^9.5.2",
+    "webpack": "^5.98.0",
+    "webpack-cli": "^6.0.1",
+    "@vscode/test-cli": "^0.0.10",
+    "@vscode/test-electron": "^2.4.1"
+  }
+}
