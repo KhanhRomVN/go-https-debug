@@ -3,15 +3,13 @@ import * as cp from 'child_process';
 import { getParserPath } from './parserPath';
 import { Route } from '../codelens/GoRouteCodeLensProvider';
 
-// Lấy tất cả route thực sự trong projectRoot
-export async function getRoutesForProject(projectRoot: string, context: vscode.ExtensionContext): Promise<Route[]> {
+export async function getRoutesForProject(projectRoot: string, context: vscode.ExtensionContext): Promise<(Route & { __file: string })[]> {
     const goFiles = await vscode.workspace.findFiles(
         new vscode.RelativePattern(projectRoot, '**/*.go'),
         '**/{vendor,node_modules,.git}/**'
     );
     const parserPath = getParserPath(context);
-
-    let routes: Route[] = [];
+    let routes: (Route & { __file: string })[] = [];
     for (const file of goFiles) {
         try {
             const fileRoutes: Route[] = await new Promise(resolve => {
@@ -24,7 +22,7 @@ export async function getRoutesForProject(projectRoot: string, context: vscode.E
                     }
                 });
             });
-            routes.push(...fileRoutes);
+            routes.push(...fileRoutes.map(r => ({ ...r, __file: file.fsPath })));
         } catch {/* ignore file error */ }
     }
     return routes;

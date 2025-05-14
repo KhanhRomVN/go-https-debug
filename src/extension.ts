@@ -27,7 +27,20 @@ export function activate(context: vscode.ExtensionContext) {
 
     // Đăng ký command để refresh sidebar (bạn gọi được trong mã lệnh hoặc menu)
     context.subscriptions.push(
-        vscode.commands.registerCommand('gohbSidebar.refresh', () => gohbTreeProvider.refresh())
+        vscode.commands.registerCommand('gohbSidebar.moveToRoute', async (filePath: string, line: number) => {
+            const doc = await vscode.workspace.openTextDocument(filePath);
+            const editor = await vscode.window.showTextDocument(doc, vscode.ViewColumn.One);
+            const pos = new vscode.Position(line - 1, 0);
+            editor.selection = new vscode.Selection(pos, pos);
+            editor.revealRange(new vscode.Range(pos, pos), vscode.TextEditorRevealType.InCenter);
+        })
+    );
+
+    // Để sau này muốn thêm RUN chỉ cần:
+    context.subscriptions.push(
+        vscode.commands.registerCommand('gohbSidebar.runRoute', (route: Route) => {
+            vscode.window.showInformationMessage('Run not implemented yet!');
+        })
     );
 }
 
