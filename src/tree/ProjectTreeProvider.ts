@@ -4,7 +4,6 @@ import { getRoutesForProject } from '../utils/getRoutesForProject';
 import { Route } from '../codelens/GoRouteCodeLensProvider';
 import * as path from 'path';
 
-// HTTP method icon map
 const methodIcons: Record<string, vscode.ThemeIcon> = {
     GET: new vscode.ThemeIcon('arrow-circle-right', new vscode.ThemeColor('charts.green')),
     POST: new vscode.ThemeIcon('circle-filled', new vscode.ThemeColor('charts.blue')),
@@ -15,7 +14,6 @@ const methodIcons: Record<string, vscode.ThemeIcon> = {
     HEAD: new vscode.ThemeIcon('chevron-up', new vscode.ThemeColor('charts.yellow')),
 };
 
-// Tree Item: Route Node
 class RouteTreeItem extends vscode.TreeItem {
     constructor(
         public readonly route: Route,
@@ -34,9 +32,8 @@ class RouteTreeItem extends vscode.TreeItem {
     }
 }
 
-// Tree Item: Resource Group (user, developer, ...)
 class ResourceGroupTreeItem extends vscode.TreeItem {
-    children: RouteTreeItem[] = [];
+    children: (ResourceGroupTreeItem | RouteTreeItem)[] = [];
     constructor(public readonly name: string) {
         super(name, vscode.TreeItemCollapsibleState.Collapsed);
         this.contextValue = 'resourceGroup';
@@ -44,7 +41,6 @@ class ResourceGroupTreeItem extends vscode.TreeItem {
     }
 }
 
-// Tree Item: Each Go file node
 class FileTreeItem extends vscode.TreeItem {
     constructor(label: string, public resources: ResourceGroupTreeItem[]) {
         super(label, vscode.TreeItemCollapsibleState.Collapsed);
@@ -53,7 +49,6 @@ class FileTreeItem extends vscode.TreeItem {
     }
 }
 
-// Tree Item: Project node
 class ProjectTreeItem extends vscode.TreeItem {
     constructor(label: string, public fullPath: string) {
         super(label, vscode.TreeItemCollapsibleState.Collapsed);
@@ -63,64 +58,55 @@ class ProjectTreeItem extends vscode.TreeItem {
     }
 }
 
-// Group routes theo resource
-function getResourceGroupKey(rawPath: string, filePath: string): string {
-    const segments = rawPath
-        .replace(/(^['"]|['"]$)/g, '')
-        .split('/')
-        .filter(seg => !!seg && !seg.startsWith(':'));
-    // Nếu group key rỗng (root "/"), dùng tên file
-    if (!segments[0]) {
-        // filePath = ".../course_routes.go"
-        const base = path.basename(filePath, '.go');
-        return base.replace('_routes', ''); // course_routes.go => "course"
-    }
-    return segments[0];
-}
+// Đệ quy group N cấp qua route.groups
+function buildResourceTreeDynamic(
+    routes: { route: any; file: string }[],
+    depth: number = 0
+): (ResourceGroupTreeItem | RouteTreeItem)[] {
+    const groupMap: Record<string, { route: any; file: string }[]> = {};
+    const leafRoutes: { route: any; file: string }[] = [];
 
-function groupByResource(
-    routes: { route: Route; file: string }[]
-): ResourceGroupTreeItem[] {
-    const resourceMap: Record<string, RouteTreeItem[]> = {};
     for (const r of routes) {
-        const resource = getResourceGroupKey(r.route.path, r.file);
-        if (!resourceMap[resource]) resourceMap[resource] = [];
-        resourceMap[resource].push(new RouteTreeItem(r.route, r.file));
+        const groups: string[] = Array.isArray(r.route.groups) ? r.route.groups : [];
+        if (groups.length > depth && groups[depth]) {
+            const key = groups[depth];
+            if (!groupMap[key]) groupMap[key] = [];
+            groupMap[key].push(r);
+        } else {
+            leafRoutes.push(r);
+        }
     }
-    return Object.keys(resourceMap)
-        .sort()
-        .map(res => {
-            const item = new ResourceGroupTreeItem(res);
-            item.children = resourceMap[res].sort((a, b) =>
-                a.route.method === b.route.method
-                    ? a.route.path.localeCompare(b.route.path)
-                    : a.route.method.localeCompare(b.route.method)
-            );
-            return item;
-        });
+
+    const items: (ResourceGroupTreeItem | RouteTreeItem)[] = [];
+
+    for (const key of Object.keys(groupMap).sort()) {
+        const node = new ResourceGroupTreeItem(key);
+        node.children = buildResourceTreeDynamic(groupMap[key], depth + 1);
+        items.push(node);
+    }
+    for (const r of leafRoutes) {
+        items.push(new RouteTreeItem(r.route, r.file));
+    }
+    return items;
 }
 
 export class ProjectTreeProvider implements vscode.TreeDataProvider<vscode.TreeItem> {
     private _onDidChangeTreeData = new vscode.EventEmitter<void>();
     readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
-
     private projects: {
         label: string;
         fullPath: string;
         files: FileTreeItem[];
     }[] = [];
-
     constructor(private context: vscode.ExtensionContext) {
         this.refresh();
     }
-
     async refresh() {
         this.projects = [];
         const projectRoots = await getAllProjectRoots();
         for (const projectFullPath of projectRoots) {
             const label = vscode.workspace.asRelativePath(projectFullPath);
             const rawRoutes = await getRoutesForProject(projectFullPath, this.context);
-
             const byFile: Record<string, { route: Route; file: string }[]> = {};
             for (const r of rawRoutes) {
                 const { __file, ...pureRoute } = r as any;
@@ -130,36 +116,29 @@ export class ProjectTreeProvider implements vscode.TreeDataProvider<vscode.TreeI
             const files: FileTreeItem[] = [];
             for (const filePath of Object.keys(byFile).sort()) {
                 const fileLabel = path.basename(filePath);
-                files.push(new FileTreeItem(fileLabel, groupByResource(byFile[filePath])));
+                files.push(new FileTreeItem(fileLabel, buildResourceTreeDynamic(byFile[filePath], 0) as ResourceGroupTreeItem[]));
             }
             this.projects.push({ label, fullPath: projectFullPath, files });
         }
         this._onDidChangeTreeData.fire();
     }
-
     getTreeItem(element: vscode.TreeItem): vscode.TreeItem {
         return element;
     }
-
     async getChildren(element?: vscode.TreeItem): Promise<vscode.TreeItem[]> {
         if (!element) {
-            // Project roots
             return this.projects.map((proj) => new ProjectTreeItem(proj.label, proj.fullPath));
         }
         if (element instanceof ProjectTreeItem) {
-            // Go files in project
             const proj = this.projects.find((p) => p.fullPath === element.fullPath);
             return proj ? proj.files : [];
         }
         if (element instanceof FileTreeItem) {
-            // Resource group in file
             return element.resources;
         }
         if (element instanceof ResourceGroupTreeItem) {
-            // Routes under resource
             return element.children;
         }
-        // Route cuối không có con
         return [];
     }
 }

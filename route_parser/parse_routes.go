@@ -11,29 +11,34 @@ import (
 )
 
 type Route struct {
-	Method string `json:"method"`
-	Path   string `json:"path"`
-	Line   int    `json:"line"`
+	Method string   `json:"method"`
+	Path   string   `json:"path"`
+	Groups []string `json:"groups"`
+	Line   int      `json:"line"`
 }
 
 var methods = regexp.MustCompile(`^(GET|POST|PUT|DELETE|PATCH|OPTIONS|HEAD)$`)
 
-// Scope to track variable -> group prefix
+type groupMeta struct {
+	fullPrefix string
+	segments   []string
+}
+
 type scope struct {
-	prefixes map[string]string
+	prefixes map[string]groupMeta
 	parent   *scope
 }
 
 func newScope(parent *scope) *scope {
-	return &scope{prefixes: map[string]string{}, parent: parent}
+	return &scope{prefixes: map[string]groupMeta{}, parent: parent}
 }
-func getPrefix(s *scope, name string) string {
+func getGroupMeta(s *scope, name string) groupMeta {
 	for cur := s; cur != nil; cur = cur.parent {
 		if pf, ok := cur.prefixes[name]; ok {
 			return pf
 		}
 	}
-	return ""
+	return groupMeta{}
 }
 
 func main() {
@@ -53,7 +58,8 @@ func main() {
 		if n == nil {
 			return
 		}
-		// Group assign: user := api.Group("/user")
+
+		// Group assign
 		if assign, ok := n.(*ast.AssignStmt); ok {
 			for i, rhs := range assign.Rhs {
 				if call, ok := rhs.(*ast.CallExpr); ok {
@@ -61,11 +67,14 @@ func main() {
 						if len(call.Args) > 0 {
 							if bl, ok := call.Args[0].(*ast.BasicLit); ok && bl.Kind.String() == "STRING" {
 								if ident, ok := assign.Lhs[i].(*ast.Ident); ok {
-									prefix := ""
+									parentMeta := groupMeta{}
 									if recv, ok := sel.X.(*ast.Ident); ok {
-										prefix = getPrefix(s, recv.Name)
+										parentMeta = getGroupMeta(s, recv.Name)
 									}
-									s.prefixes[ident.Name] = joinPath(prefix, trimQuotes(bl.Value))
+									thisSeg := trimQuotes(bl.Value)
+									full := joinPath(parentMeta.fullPrefix, thisSeg)
+									segments := append(append([]string{}, parentMeta.segments...), strings.Trim(thisSeg, "/"))
+									s.prefixes[ident.Name] = groupMeta{fullPrefix: full, segments: segments}
 								}
 							}
 						}
@@ -73,7 +82,7 @@ func main() {
 				}
 			}
 		}
-		// Route handler: user.POST("/register", ...)
+		// Route handler
 		if expr, ok := n.(*ast.ExprStmt); ok {
 			if call, ok := expr.X.(*ast.CallExpr); ok {
 				if sel, ok := call.Fun.(*ast.SelectorExpr); ok && methods.MatchString(sel.Sel.Name) {
@@ -81,7 +90,8 @@ func main() {
 					if ident, ok := sel.X.(*ast.Ident); ok {
 						recvName = ident.Name
 					}
-					prefix := getPrefix(s, recvName)
+					meta := getGroupMeta(s, recvName)
+					prefix := meta.fullPrefix
 					path := ""
 					if len(call.Args) > 0 {
 						if bl, ok := call.Args[0].(*ast.BasicLit); ok && bl.Kind.String() == "STRING" {
@@ -89,16 +99,24 @@ func main() {
 						}
 					}
 					line := fs.Position(call.Pos()).Line
+					var groups []string
+					for _, g := range meta.segments {
+						g = strings.Trim(g, "/")
+						if g != "" {
+							groups = append(groups, g)
+						}
+					}
 					fullPath := joinPath(prefix, path)
 					routes = append(routes, Route{
 						Method: sel.Sel.Name,
 						Path:   fullPath,
+						Groups: groups,
 						Line:   line,
 					})
 				}
 			}
 		}
-		// Đệ quy depth-first vào các node con (quản lý scope cho block)
+		// Recursion
 		switch t := n.(type) {
 		case *ast.BlockStmt:
 			childScope := newScope(s)
@@ -128,7 +146,6 @@ func main() {
 			inspectFunc(t.Body, s)
 		}
 	}
-
 	globalScope := newScope(nil)
 	inspectFunc(node, globalScope)
 	if len(routes) == 0 {
